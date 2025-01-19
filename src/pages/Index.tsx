@@ -2,6 +2,7 @@ import { Activity, DollarSign, Users, Package } from "lucide-react";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { SalesChart } from "@/components/dashboard/SalesChart";
 import { PatientList } from "@/components/dashboard/PatientList";
+import { WhatsAppMonitor } from "@/components/dashboard/WhatsAppMonitor";
 
 const Index = () => {
   return (
@@ -44,6 +45,10 @@ const Index = () => {
         <div className="grid gap-4 md:grid-cols-7">
           <SalesChart />
           <PatientList />
+        </div>
+
+        <div className="grid gap-4">
+          <WhatsAppMonitor />
         </div>
       </div>
     </div>
