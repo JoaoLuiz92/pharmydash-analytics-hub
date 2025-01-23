@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Clock, MessageCircle } from "lucide-react";
-import { differenceInMinutes } from "date-fns";
+import { differenceInMinutes, differenceInHours } from "date-fns";
 
 // Palavras que indicam finalização da conversa
 const CLOSING_KEYWORDS = [
@@ -13,6 +13,27 @@ const CLOSING_KEYWORDS = [
   "tchau",
   "adeus"
 ];
+
+// Lista de vendedores disponíveis
+const SELLERS = [
+  "João Silva",
+  "Maria Santos",
+  "Carlos Oliveira",
+  "Ana Costa",
+  "Pedro Lima"
+];
+
+// Função para atribuir vendedor aleatoriamente
+const getRandomSeller = () => {
+  const randomIndex = Math.floor(Math.random() * SELLERS.length);
+  return SELLERS[randomIndex];
+};
+
+// Função para verificar se a conversa deve ser resetada (36 horas)
+const shouldResetConversation = (startTime: string) => {
+  const hours = differenceInHours(new Date(), new Date(startTime));
+  return hours >= 36;
+};
 
 // Dados simulados - em produção, isso viria da API do WhatsApp Business
 const conversations = [
@@ -25,7 +46,7 @@ const conversations = [
     lastCustomerMessageTime: new Date(Date.now() - 3 * 60000).toISOString(), // 3 minutos atrás
     lastAgentMessageTime: new Date(Date.now() - 2 * 60000).toISOString(), // 2 minutos atrás
     isOpen: true,
-    attendedBy: null,
+    attendedBy: getRandomSeller(),
     messages: [
       {
         content: "Gostaria de saber o preço do medicamento",
@@ -48,7 +69,7 @@ const conversations = [
     lastCustomerMessageTime: new Date(Date.now() - 10 * 60000).toISOString(), // 10 minutos atrás
     lastAgentMessageTime: null,
     isOpen: true,
-    attendedBy: null,
+    attendedBy: getRandomSeller(),
     messages: [
       {
         content: "Vocês têm disponível?",
@@ -62,11 +83,11 @@ const conversations = [
     customer: "Ana Oliveira",
     lastMessage: "Obrigada pelo atendimento",
     phone: "5511777777777",
-    startTime: new Date().toISOString(),
-    lastCustomerMessageTime: new Date(Date.now() - 1 * 60000).toISOString(), // 1 minuto atrás
+    startTime: new Date(Date.now() - 37 * 60 * 60000).toISOString(), // 37 horas atrás (deve ser resetada)
+    lastCustomerMessageTime: new Date(Date.now() - 1 * 60000).toISOString(),
     lastAgentMessageTime: new Date(Date.now() - 2 * 60000).toISOString(),
     isOpen: false,
-    attendedBy: "Carlos",
+    attendedBy: getRandomSeller(),
     messages: [
       {
         content: "Posso ajudar com mais alguma coisa?",
@@ -148,15 +169,13 @@ const getStatusText = (status: string) => {
 };
 
 export function WhatsAppMonitor() {
-  // Filtra apenas conversas abertas por padrão
-  const activeConversations = conversations.filter(conv => conv.isOpen);
+  // Filtra apenas conversas que não devem ser resetadas
+  const activeConversations = conversations
+    .filter(conv => conv.isOpen && !shouldResetConversation(conv.startTime));
   
   const handleConversationClick = (phone: string) => {
-    // Remove qualquer caractere não numérico do telefone
     const cleanPhone = phone.replace(/\D/g, '');
-    // Cria o link do WhatsApp
     const whatsappUrl = `https://wa.me/${cleanPhone}`;
-    // Abre em uma nova aba
     window.open(whatsappUrl, '_blank');
   };
 
@@ -203,11 +222,9 @@ export function WhatsAppMonitor() {
                   <p className="text-sm text-muted-foreground truncate max-w-[200px]">
                     {conv.lastMessage}
                   </p>
-                  {conv.attendedBy && (
-                    <p className="text-xs text-muted-foreground">
-                      Atendido por: {conv.attendedBy}
-                    </p>
-                  )}
+                  <p className="text-xs text-muted-foreground">
+                    Atendido por: {conv.attendedBy || "Não atribuído"}
+                  </p>
                 </div>
               </div>
               <div className="flex items-center space-x-4">
