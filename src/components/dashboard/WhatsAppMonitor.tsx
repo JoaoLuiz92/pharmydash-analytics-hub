@@ -87,6 +87,15 @@ export function WhatsAppMonitor() {
   // Filtra apenas conversas abertas por padrão
   const activeConversations = conversations.filter(conv => conv.isOpen);
   
+  const handleConversationClick = (phone: string) => {
+    // Remove qualquer caractere não numérico do telefone
+    const cleanPhone = phone.replace(/\D/g, '');
+    // Cria o link do WhatsApp
+    const whatsappUrl = `https://wa.me/${cleanPhone}`;
+    // Abre em uma nova aba
+    window.open(whatsappUrl, '_blank');
+  };
+
   return (
     <Card className="col-span-3">
       <CardHeader className="flex flex-row items-center justify-between">
@@ -106,7 +115,8 @@ export function WhatsAppMonitor() {
           {activeConversations.map((conv) => (
             <div
               key={conv.id}
-              className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+              className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
+              onClick={() => handleConversationClick(conv.phone)}
             >
               <div className="flex items-center space-x-4">
                 <Avatar>
