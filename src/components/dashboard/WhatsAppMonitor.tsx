@@ -2,56 +2,120 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Clock, MessageCircle } from "lucide-react";
+import { differenceInMinutes } from "date-fns";
+
+// Palavras que indicam finalização da conversa
+const CLOSING_KEYWORDS = [
+  "obrigado",
+  "obrigada",
+  "valeu",
+  "até mais",
+  "tchau",
+  "adeus"
+];
 
 // Dados simulados - em produção, isso viria da API do WhatsApp Business
 const conversations = [
   {
     id: 1,
     customer: "Maria Silva",
-    waitTime: 15,
     lastMessage: "Gostaria de saber o preço do medicamento",
-    status: "waiting",
     phone: "5511999999999",
-    startTime: "2024-01-19T10:00:00",
+    startTime: new Date().toISOString(),
+    lastCustomerMessageTime: new Date(Date.now() - 3 * 60000).toISOString(), // 3 minutos atrás
+    lastAgentMessageTime: new Date(Date.now() - 2 * 60000).toISOString(), // 2 minutos atrás
     isOpen: true,
-    attendedBy: null
+    attendedBy: null,
+    messages: [
+      {
+        content: "Gostaria de saber o preço do medicamento",
+        timestamp: new Date(Date.now() - 3 * 60000).toISOString(),
+        isFromCustomer: true
+      },
+      {
+        content: "Claro! O medicamento custa R$ 50,00",
+        timestamp: new Date(Date.now() - 2 * 60000).toISOString(),
+        isFromCustomer: false
+      }
+    ]
   },
   {
     id: 2,
     customer: "João Santos",
-    waitTime: 30,
     lastMessage: "Vocês têm disponível?",
-    status: "unresponded",
     phone: "5511888888888",
-    startTime: "2024-01-19T09:30:00",
+    startTime: new Date().toISOString(),
+    lastCustomerMessageTime: new Date(Date.now() - 10 * 60000).toISOString(), // 10 minutos atrás
+    lastAgentMessageTime: null,
     isOpen: true,
-    attendedBy: null
+    attendedBy: null,
+    messages: [
+      {
+        content: "Vocês têm disponível?",
+        timestamp: new Date(Date.now() - 10 * 60000).toISOString(),
+        isFromCustomer: true
+      }
+    ]
   },
   {
     id: 3,
     customer: "Ana Oliveira",
-    waitTime: 5,
     lastMessage: "Obrigada pelo atendimento",
-    status: "active",
     phone: "5511777777777",
-    startTime: "2024-01-19T10:15:00",
-    isOpen: true,
-    attendedBy: "Carlos"
-  },
-  {
-    id: 4,
-    customer: "Pedro Costa",
-    waitTime: 0,
-    lastMessage: "Compra finalizada com sucesso",
-    status: "closed",
-    phone: "5511666666666",
-    startTime: "2024-01-19T08:00:00",
+    startTime: new Date().toISOString(),
+    lastCustomerMessageTime: new Date(Date.now() - 1 * 60000).toISOString(), // 1 minuto atrás
+    lastAgentMessageTime: new Date(Date.now() - 2 * 60000).toISOString(),
     isOpen: false,
-    attendedBy: "Maria",
-    closedAt: "2024-01-19T08:45:00",
-    resolution: "sale" // pode ser 'sale', 'cancelled', 'transferred'
+    attendedBy: "Carlos",
+    messages: [
+      {
+        content: "Posso ajudar com mais alguma coisa?",
+        timestamp: new Date(Date.now() - 2 * 60000).toISOString(),
+        isFromCustomer: false
+      },
+      {
+        content: "Obrigada pelo atendimento",
+        timestamp: new Date(Date.now() - 1 * 60000).toISOString(),
+        isFromCustomer: true
+      }
+    ]
   }
 ];
+
+const getConversationStatus = (conversation: typeof conversations[0]) => {
+  // Se a conversa já está fechada, retorna 'closed'
+  if (!conversation.isOpen) return "closed";
+
+  const lastMessage = conversation.messages[conversation.messages.length - 1];
+  
+  // Verifica se a última mensagem contém palavras-chave de finalização
+  if (lastMessage && lastMessage.isFromCustomer) {
+    const messageContent = lastMessage.content.toLowerCase();
+    if (CLOSING_KEYWORDS.some(keyword => messageContent.includes(keyword))) {
+      return "closed";
+    }
+  }
+
+  // Se não tem mensagem do agente ainda e passou de 5 minutos
+  if (!conversation.lastAgentMessageTime && 
+      differenceInMinutes(new Date(), new Date(conversation.lastCustomerMessageTime)) > 5) {
+    return "unresponded";
+  }
+
+  // Se a última mensagem é do cliente e passou mais de 5 minutos
+  if (lastMessage?.isFromCustomer && 
+      differenceInMinutes(new Date(), new Date(conversation.lastCustomerMessageTime)) > 5) {
+    return "unresponded";
+  }
+
+  // Se a última mensagem é do agente e está dentro dos 5 minutos
+  if (!lastMessage?.isFromCustomer && 
+      differenceInMinutes(new Date(), new Date(conversation.lastAgentMessageTime!)) <= 5) {
+    return "waiting";
+  }
+
+  return "active";
+};
 
 const getStatusColor = (status: string) => {
   switch (status) {
@@ -94,6 +158,13 @@ export function WhatsAppMonitor() {
     const whatsappUrl = `https://wa.me/${cleanPhone}`;
     // Abre em uma nova aba
     window.open(whatsappUrl, '_blank');
+  };
+
+  const getWaitTime = (conversation: typeof conversations[0]) => {
+    if (conversation.lastCustomerMessageTime) {
+      return differenceInMinutes(new Date(), new Date(conversation.lastCustomerMessageTime));
+    }
+    return 0;
   };
 
   return (
@@ -144,13 +215,13 @@ export function WhatsAppMonitor() {
                   <div className="flex items-center space-x-1">
                     <Clock className="w-4 h-4 text-muted-foreground" />
                     <span className="text-sm font-medium">
-                      {conv.waitTime} min
+                      {getWaitTime(conv)} min
                     </span>
                   </div>
                   <Badge
-                    className={`${getStatusColor(conv.status)} text-white mt-1`}
+                    className={`${getStatusColor(getConversationStatus(conv))} text-white mt-1`}
                   >
-                    {getStatusText(conv.status)}
+                    {getStatusText(getConversationStatus(conv))}
                   </Badge>
                 </div>
               </div>
