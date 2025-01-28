@@ -22,7 +22,7 @@ const Index = () => {
       title: "Logout realizado com sucesso",
       description: "Até logo!",
     });
-    navigate("/login");
+    navigate("/monitor");
   };
 
   return (
