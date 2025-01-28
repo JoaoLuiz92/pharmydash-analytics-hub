@@ -36,7 +36,7 @@ const shouldResetConversation = (startTime: string) => {
 };
 
 // Dados simulados - em produção, isso viria da API do WhatsApp Business
-const conversations = [
+export const conversations = [
   {
     id: 1,
     customer: "Maria Silva",

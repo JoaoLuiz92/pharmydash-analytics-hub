@@ -3,6 +3,11 @@ import { MetricCard } from "@/components/dashboard/MetricCard";
 import { SalesChart } from "@/components/dashboard/SalesChart";
 import { PatientList } from "@/components/dashboard/PatientList";
 import { WhatsAppMonitor } from "@/components/dashboard/WhatsAppMonitor";
+import { AttendanceMetrics } from "@/components/dashboard/AttendanceMetrics";
+
+// Importar os dados simulados do WhatsAppMonitor
+// Em produção, isso viria de uma API
+import { conversations } from "@/components/dashboard/WhatsAppMonitor";
 
 const Index = () => {
   return (
@@ -41,6 +46,8 @@ const Index = () => {
             description="32 diferentes itens"
           />
         </div>
+
+        <AttendanceMetrics conversations={conversations} />
 
         <div className="grid gap-4 md:grid-cols-7">
           <SalesChart />
