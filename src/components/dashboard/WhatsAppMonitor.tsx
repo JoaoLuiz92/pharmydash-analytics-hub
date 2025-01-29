@@ -193,50 +193,56 @@ export function WhatsAppMonitor() {
         </div>
       </CardHeader>
       <CardContent>
-        <div className="space-y-4">
-          {activeConversations.map((conv) => (
-            <div
-              key={conv.id}
-              className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
-              onClick={() => handleConversationClick(conv.customer_phone)}
-            >
-              <div className="flex items-center space-x-4">
-                <Avatar>
-                  <AvatarFallback>
-                    {conv.customer_name
-                      .split(" ")
-                      .map((n: string) => n[0])
-                      .join("")}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <p className="font-medium">{conv.customer_name}</p>
-                  <p className="text-sm text-muted-foreground truncate max-w-[200px]">
-                    {conv.last_message?.[0]?.content || "Sem mensagens"}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Atendido por: {conv.agent?.profile?.full_name || "Não atribuído"}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center space-x-4">
-                <div className="text-right">
-                  <div className="flex items-center space-x-1">
-                    <Clock className="w-4 h-4 text-muted-foreground" />
-                    <span className="text-sm font-medium">
-                      {getWaitTime(conv)} min
-                    </span>
+        {activeConversations.length === 0 ? (
+          <div className="flex items-center justify-center h-48 text-gray-500">
+            <p>Sem histórico de conversas</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {activeConversations.map((conv) => (
+              <div
+                key={conv.id}
+                className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
+                onClick={() => handleConversationClick(conv.customer_phone)}
+              >
+                <div className="flex items-center space-x-4">
+                  <Avatar>
+                    <AvatarFallback>
+                      {conv.customer_name
+                        .split(" ")
+                        .map((n: string) => n[0])
+                        .join("")}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <p className="font-medium">{conv.customer_name}</p>
+                    <p className="text-sm text-muted-foreground truncate max-w-[200px]">
+                      {conv.last_message?.[0]?.content || "Sem mensagens"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Atendido por: {conv.agent?.profile?.full_name || "Não atribuído"}
+                    </p>
                   </div>
-                  <Badge
-                    className={`${getStatusColor(getConversationStatus(conv))} text-white mt-1`}
-                  >
-                    {getStatusText(getConversationStatus(conv))}
-                  </Badge>
+                </div>
+                <div className="flex items-center space-x-4">
+                  <div className="text-right">
+                    <div className="flex items-center space-x-1">
+                      <Clock className="w-4 h-4 text-muted-foreground" />
+                      <span className="text-sm font-medium">
+                        {getWaitTime(conv)} min
+                      </span>
+                    </div>
+                    <Badge
+                      className={`${getStatusColor(getConversationStatus(conv))} text-white mt-1`}
+                    >
+                      {getStatusText(getConversationStatus(conv))}
+                    </Badge>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
