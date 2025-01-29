@@ -7,10 +7,41 @@ import { AttendanceMetrics } from "@/components/dashboard/AttendanceMetrics";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/components/ui/use-toast";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 const Index = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  const { data: conversations } = useQuery({
+    queryKey: ['conversations'],
+    queryFn: async () => {
+      const { data: conversationsData, error: conversationsError } = await supabase
+        .from('conversations')
+        .select(`
+          *,
+          agent:agents(
+            profile:profiles(
+              full_name
+            )
+          ),
+          last_message:messages(
+            content,
+            is_from_customer,
+            timestamp
+          )
+        `)
+        .order('created_at', { ascending: false });
+
+      if (conversationsError) {
+        console.error('Error fetching conversations:', conversationsError);
+        throw conversationsError;
+      }
+
+      return conversationsData || [];
+    }
+  });
 
   const handleLogout = () => {
     localStorage.removeItem("isAuthenticated");
@@ -68,7 +99,7 @@ const Index = () => {
           />
         </div>
 
-        <AttendanceMetrics />
+        <AttendanceMetrics conversations={conversations || []} />
 
         <div className="grid gap-4 md:grid-cols-7">
           <SalesChart />
