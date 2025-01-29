@@ -8,10 +8,6 @@ import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/components/ui/use-toast";
 
-// Importar os dados simulados do WhatsAppMonitor
-// Em produção, isso viria de uma API
-import { conversations } from "@/components/dashboard/WhatsAppMonitor";
-
 const Index = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -72,7 +68,7 @@ const Index = () => {
           />
         </div>
 
-        <AttendanceMetrics conversations={conversations} />
+        <AttendanceMetrics />
 
         <div className="grid gap-4 md:grid-cols-7">
           <SalesChart />
