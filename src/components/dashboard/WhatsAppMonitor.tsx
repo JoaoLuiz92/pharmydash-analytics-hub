@@ -3,6 +3,10 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Clock, MessageCircle } from "lucide-react";
 import { differenceInMinutes, differenceInHours } from "date-fns";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useEffect } from "react";
+import { useToast } from "@/components/ui/use-toast";
 
 // Palavras que indicam finalização da conversa
 const CLOSING_KEYWORDS = [
@@ -14,124 +18,38 @@ const CLOSING_KEYWORDS = [
   "adeus"
 ];
 
-// Lista de vendedores disponíveis
-const SELLERS = [
-  "João Silva",
-  "Maria Santos",
-  "Carlos Oliveira",
-  "Ana Costa",
-  "Pedro Lima"
-];
-
-// Função para atribuir vendedor aleatoriamente
-const getRandomSeller = () => {
-  const randomIndex = Math.floor(Math.random() * SELLERS.length);
-  return SELLERS[randomIndex];
-};
-
 // Função para verificar se a conversa deve ser resetada (36 horas)
 const shouldResetConversation = (startTime: string) => {
   const hours = differenceInHours(new Date(), new Date(startTime));
   return hours >= 36;
 };
 
-// Dados simulados - em produção, isso viria da API do WhatsApp Business
-export const conversations = [
-  {
-    id: 1,
-    customer: "Maria Silva",
-    lastMessage: "Gostaria de saber o preço do medicamento",
-    phone: "5511999999999",
-    startTime: new Date().toISOString(),
-    lastCustomerMessageTime: new Date(Date.now() - 3 * 60000).toISOString(), // 3 minutos atrás
-    lastAgentMessageTime: new Date(Date.now() - 2 * 60000).toISOString(), // 2 minutos atrás
-    isOpen: true,
-    attendedBy: getRandomSeller(),
-    messages: [
-      {
-        content: "Gostaria de saber o preço do medicamento",
-        timestamp: new Date(Date.now() - 3 * 60000).toISOString(),
-        isFromCustomer: true
-      },
-      {
-        content: "Claro! O medicamento custa R$ 50,00",
-        timestamp: new Date(Date.now() - 2 * 60000).toISOString(),
-        isFromCustomer: false
-      }
-    ]
-  },
-  {
-    id: 2,
-    customer: "João Santos",
-    lastMessage: "Vocês têm disponível?",
-    phone: "5511888888888",
-    startTime: new Date().toISOString(),
-    lastCustomerMessageTime: new Date(Date.now() - 10 * 60000).toISOString(), // 10 minutos atrás
-    lastAgentMessageTime: null,
-    isOpen: true,
-    attendedBy: getRandomSeller(),
-    messages: [
-      {
-        content: "Vocês têm disponível?",
-        timestamp: new Date(Date.now() - 10 * 60000).toISOString(),
-        isFromCustomer: true
-      }
-    ]
-  },
-  {
-    id: 3,
-    customer: "Ana Oliveira",
-    lastMessage: "Obrigada pelo atendimento",
-    phone: "5511777777777",
-    startTime: new Date(Date.now() - 37 * 60 * 60000).toISOString(), // 37 horas atrás (deve ser resetada)
-    lastCustomerMessageTime: new Date(Date.now() - 1 * 60000).toISOString(),
-    lastAgentMessageTime: new Date(Date.now() - 2 * 60000).toISOString(),
-    isOpen: false,
-    attendedBy: getRandomSeller(),
-    messages: [
-      {
-        content: "Posso ajudar com mais alguma coisa?",
-        timestamp: new Date(Date.now() - 2 * 60000).toISOString(),
-        isFromCustomer: false
-      },
-      {
-        content: "Obrigada pelo atendimento",
-        timestamp: new Date(Date.now() - 1 * 60000).toISOString(),
-        isFromCustomer: true
-      }
-    ]
-  }
-];
+const getConversationStatus = (conversation: any) => {
+  if (!conversation.is_open) return "closed";
 
-const getConversationStatus = (conversation: typeof conversations[0]) => {
-  // Se a conversa já está fechada, retorna 'closed'
-  if (!conversation.isOpen) return "closed";
-
-  const lastMessage = conversation.messages[conversation.messages.length - 1];
-  
   // Verifica se a última mensagem contém palavras-chave de finalização
-  if (lastMessage && lastMessage.isFromCustomer) {
-    const messageContent = lastMessage.content.toLowerCase();
+  if (conversation.last_message?.is_from_customer) {
+    const messageContent = conversation.last_message.content.toLowerCase();
     if (CLOSING_KEYWORDS.some(keyword => messageContent.includes(keyword))) {
       return "closed";
     }
   }
 
   // Se não tem mensagem do agente ainda e passou de 5 minutos
-  if (!conversation.lastAgentMessageTime && 
-      differenceInMinutes(new Date(), new Date(conversation.lastCustomerMessageTime)) > 5) {
+  if (!conversation.last_agent_message_time && 
+      differenceInMinutes(new Date(), new Date(conversation.last_customer_message_time)) > 5) {
     return "unresponded";
   }
 
   // Se a última mensagem é do cliente e passou mais de 5 minutos
-  if (lastMessage?.isFromCustomer && 
-      differenceInMinutes(new Date(), new Date(conversation.lastCustomerMessageTime)) > 5) {
+  if (conversation.last_message?.is_from_customer && 
+      differenceInMinutes(new Date(), new Date(conversation.last_customer_message_time)) > 5) {
     return "unresponded";
   }
 
   // Se a última mensagem é do agente e está dentro dos 5 minutos
-  if (!lastMessage?.isFromCustomer && 
-      differenceInMinutes(new Date(), new Date(conversation.lastAgentMessageTime!)) <= 5) {
+  if (!conversation.last_message?.is_from_customer && 
+      differenceInMinutes(new Date(), new Date(conversation.last_agent_message_time)) <= 5) {
     return "waiting";
   }
 
@@ -169,9 +87,68 @@ const getStatusText = (status: string) => {
 };
 
 export function WhatsAppMonitor() {
+  const { toast } = useToast();
+
+  const { data: conversations, isLoading } = useQuery({
+    queryKey: ['conversations'],
+    queryFn: async () => {
+      const { data: conversationsData, error: conversationsError } = await supabase
+        .from('conversations')
+        .select(`
+          *,
+          agent:agents(
+            profile:profiles(
+              full_name
+            )
+          ),
+          last_message:messages(
+            content,
+            is_from_customer,
+            timestamp
+          )
+        `)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (conversationsError) {
+        console.error('Error fetching conversations:', conversationsError);
+        throw conversationsError;
+      }
+
+      return conversationsData || [];
+    }
+  });
+
+  // Configurar canal de tempo real para atualizações
+  useEffect(() => {
+    const channel = supabase
+      .channel('schema-db-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'conversations'
+        },
+        (payload) => {
+          console.log('Realtime update:', payload);
+          toast({
+            title: "Nova atualização",
+            description: "Uma conversa foi atualizada"
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [toast]);
+
   // Filtra apenas conversas que não devem ser resetadas
-  const activeConversations = conversations
-    .filter(conv => conv.isOpen && !shouldResetConversation(conv.startTime));
+  const activeConversations = conversations?.filter(
+    conv => conv.is_open && !shouldResetConversation(conv.start_time)
+  ) || [];
   
   const handleConversationClick = (phone: string) => {
     const cleanPhone = phone.replace(/\D/g, '');
@@ -179,12 +156,27 @@ export function WhatsAppMonitor() {
     window.open(whatsappUrl, '_blank');
   };
 
-  const getWaitTime = (conversation: typeof conversations[0]) => {
-    if (conversation.lastCustomerMessageTime) {
-      return differenceInMinutes(new Date(), new Date(conversation.lastCustomerMessageTime));
+  const getWaitTime = (conversation: any) => {
+    if (conversation.last_customer_message_time) {
+      return differenceInMinutes(new Date(), new Date(conversation.last_customer_message_time));
     }
     return 0;
   };
+
+  if (isLoading) {
+    return (
+      <Card className="col-span-3">
+        <CardHeader>
+          <CardTitle>Monitor WhatsApp</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-center h-48">
+            <p>Carregando conversas...</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="col-span-3">
@@ -196,7 +188,7 @@ export function WhatsAppMonitor() {
             {activeConversations.length} conversas ativas
           </Badge>
           <Badge variant="outline" className="ml-2">
-            {conversations.filter(conv => !conv.isOpen).length} finalizados hoje
+            {conversations?.filter(conv => !conv.is_open).length} finalizados hoje
           </Badge>
         </div>
       </CardHeader>
@@ -206,24 +198,24 @@ export function WhatsAppMonitor() {
             <div
               key={conv.id}
               className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
-              onClick={() => handleConversationClick(conv.phone)}
+              onClick={() => handleConversationClick(conv.customer_phone)}
             >
               <div className="flex items-center space-x-4">
                 <Avatar>
                   <AvatarFallback>
-                    {conv.customer
+                    {conv.customer_name
                       .split(" ")
-                      .map((n) => n[0])
+                      .map((n: string) => n[0])
                       .join("")}
                   </AvatarFallback>
                 </Avatar>
                 <div>
-                  <p className="font-medium">{conv.customer}</p>
+                  <p className="font-medium">{conv.customer_name}</p>
                   <p className="text-sm text-muted-foreground truncate max-w-[200px]">
-                    {conv.lastMessage}
+                    {conv.last_message?.[0]?.content || "Sem mensagens"}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    Atendido por: {conv.attendedBy || "Não atribuído"}
+                    Atendido por: {conv.agent?.profile?.full_name || "Não atribuído"}
                   </p>
                 </div>
               </div>
